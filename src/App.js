@@ -3,11 +3,25 @@ import CameraCapture from "./components/CameraCapture";
 
 function App() {
   const [capturedImage, setCapturedImage] = useState(null);
+  const [imageName, setImageName] = useState(null);
+  const [caption, setCaption] = useState("");
 
-  // Function to send image to backend and redirect
-  const sendToBackend = async () => {
+  // Handle File Upload
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCapturedImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Upload Image to Backend
+  const uploadToBackend = async () => {
     if (!capturedImage) {
-      alert("Capture an image first!");
+      alert("Capture or upload an image first!");
       return;
     }
 
@@ -18,27 +32,72 @@ function App() {
         body: JSON.stringify({ image: capturedImage }),
       });
 
-      // ✅ If response is a redirect, navigate to new page
-      if (response.redirected) {
-        window.location.href = response.url; // Redirect user to /uploaded
+      const data = await response.json();
+
+      if (data.image_name) {
+        setImageName(data.image_name);
+        setCaption(""); // Reset caption
+      } else {
+        alert("Image upload failed.");
       }
     } catch (error) {
-      console.error("❌ Error sending image:", error);
+      console.error("❌ Error uploading image:", error);
+      alert("Error uploading image.");
+    }
+  };
+
+  // Fetch Caption from Backend
+  const fetchCaption = async () => {
+    if (!imageName) {
+      alert("Upload an image first!");
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8080/caption/${imageName}`);
+      const data = await response.json();
+
+      if (data.caption) {
+        setCaption(data.caption);
+      } else {
+        alert("Failed to generate caption.");
+      }
+    } catch (error) {
+      console.error("❌ Error fetching caption:", error);
+      alert("Error retrieving caption.");
     }
   };
 
   return (
     <div className="App">
       <h1>Photo-to-Poetry Web App</h1>
+
       <CameraCapture onCapture={setCapturedImage} />
+
+      <input type="file" accept="image/*" onChange={handleFileUpload} />
+      <br />
 
       {capturedImage && (
         <div>
-          <h2>Captured Image:</h2>
-          <img src={capturedImage} alt="Captured" />
+          <h2>Selected Image:</h2>
+          <img src={capturedImage} alt="Captured" style={{ maxWidth: "300px" }} />
+          <br />
+          <button onClick={uploadToBackend}>Upload to Server</button>
+        </div>
+      )}
 
-          {/* ✅ Upload button to send image & redirect */}
-          <button onClick={sendToBackend}>Upload to Server</button>
+      {imageName && (
+        <div>
+          <h2>Uploaded Image:</h2>
+          <img src={`http://localhost:8080/image/${imageName}`} alt="Uploaded" style={{ maxWidth: "300px" }} />
+          <br />
+          <button onClick={fetchCaption}>Generate Caption</button>
+          {caption && (
+            <div>
+              <h3>Generated Caption:</h3>
+              <p>{caption}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
