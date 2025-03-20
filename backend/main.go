@@ -26,6 +26,14 @@ type CaptionResponse struct {
 	Caption string `json:"caption"`
 }
 
+type ConvertRequest struct {
+	Caption string `json:"caption"`
+}
+
+type PoemResponse struct {
+	Poem string `json:"poem"`
+}
+
 var captions = make(map[string]string) // Store captions in memory
 
 func main() {
@@ -40,9 +48,10 @@ func main() {
 	})
 
 	// ✅ API Routes
-	r.POST("/upload", handleImageUpload)
+	r.POST("/upload", handleImageUpload)      // Upload image + generate caption
 	r.GET("/image/:image_name", serveImage)   // Fetch image
 	r.GET("/caption/:image_name", getCaption) // Fetch caption
+	r.POST("/convert", convertTextToPoetry)   // Convert caption to poetry
 
 	// ✅ Start backend server
 	log.Println("🚀 Backend running on http://localhost:8080")
@@ -52,9 +61,6 @@ func main() {
 // Handle image upload + captioning
 func handleImageUpload(c *gin.Context) {
 	var request ImageUploadRequest
-
-	// Log incoming request
-	log.Println("🔄 Receiving image upload request...")
 
 	// Parse JSON request body
 	if err := c.BindJSON(&request); err != nil {
@@ -80,7 +86,7 @@ func handleImageUpload(c *gin.Context) {
 	// Store caption in memory
 	captions[imageName] = caption
 
-	// ✅ Send image name to frontend
+	// ✅ Send image details to frontend
 	c.JSON(http.StatusOK, gin.H{
 		"image_name":  imageName,
 		"image_url":   fmt.Sprintf("http://localhost:8080/image/%s", imageName),
@@ -110,6 +116,42 @@ func getCaption(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Caption not found"})
 	}
+}
+
+// Convert caption to poetry
+func convertTextToPoetry(c *gin.Context) {
+	var request ConvertRequest
+
+	if err := c.BindJSON(&request); err != nil {
+		log.Println("❌ Error parsing JSON:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	// Run Python script for text conversion
+	cmd := exec.Command("python", "convert.py")
+	cmd.Stdin = strings.NewReader(fmt.Sprintf(`{"caption": "%s"}`, request.Caption))
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		log.Println("❌ Error running Python script:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate poetry"})
+		return
+	}
+
+	// Parse Python response
+	var response PoemResponse
+	err = json.Unmarshal(out.Bytes(), &response)
+	if err != nil {
+		log.Println("❌ Error parsing poetry response:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid poetry response"})
+		return
+	}
+
+	// Return the generated poem
+	c.JSON(http.StatusOK, gin.H{"poem": response.Poem})
 }
 
 // Save base64 image as a file

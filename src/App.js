@@ -5,6 +5,7 @@ function App() {
   const [capturedImage, setCapturedImage] = useState(null);
   const [imageName, setImageName] = useState(null);
   const [caption, setCaption] = useState("");
+  const [poem, setPoem] = useState("");
 
   // Handle File Upload
   const handleFileUpload = (event) => {
@@ -36,7 +37,8 @@ function App() {
 
       if (data.image_name) {
         setImageName(data.image_name);
-        setCaption(""); // Reset caption
+        setCaption(""); 
+        setPoem(""); 
       } else {
         alert("Image upload failed.");
       }
@@ -68,12 +70,38 @@ function App() {
     }
   };
 
+  // Convert Caption to Poetry
+  const convertToPoetry = async () => {
+    if (!caption) {
+      alert("Generate a caption first!");
+      return;
+    }
+
+    try {
+      const response = await fetch("http://localhost:8080/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption }),
+      });
+
+      const data = await response.json();
+
+      if (data.poem) {
+        setPoem(data.poem);
+      } else {
+        alert("Failed to generate poetry.");
+      }
+    } catch (error) {
+      console.error("❌ Error converting text:", error);
+      alert("Error generating poetry.");
+    }
+  };
+
   return (
     <div className="App">
       <h1>Photo-to-Poetry Web App</h1>
 
       <CameraCapture onCapture={setCapturedImage} />
-
       <input type="file" accept="image/*" onChange={handleFileUpload} />
       <br />
 
@@ -96,6 +124,13 @@ function App() {
             <div>
               <h3>Generated Caption:</h3>
               <p>{caption}</p>
+              <button onClick={convertToPoetry}>Convert to Poetry</button>
+            </div>
+          )}
+          {poem && (
+            <div>
+              <h3>Generated Poem:</h3>
+              <p>{poem}</p>
             </div>
           )}
         </div>
